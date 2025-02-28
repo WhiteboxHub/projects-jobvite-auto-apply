@@ -1,0 +1,38 @@
+# resume_file: "resume/Sunil Resume.pdf"
+
+personal_info:
+  first_name: "Rohith"
+  last_name: "Yadav"
+  pronoun: "He/Him"
+  email: "rohithyadav628169@gmail.com"
+  phone: "+1-123-456-7890"
+  phone_device_type: "Mobile"
+  country: "United States"
+  address:
+    line_1: "123 Main St"
+    line_2: "Apt 4B"
+    city: "New York"
+    state: "NY"
+    zip: "10001"
+
+location_preferences:
+  interested_in_relocating: "Yes"
+  preferred_location: "San Francisco, CA"
+  alternate_location: "Seattle, WA"
+
+additional_info:
+  heard_about_position: "LinkedIn"
+  desired_salary_range: "$100,000 - $120,000"
+  desired_compensation: "$110,000 - $130,000"
+  previously_worked_at_brg: "No"
+  relatives_at_brg: "No"
+  worked_for_or_against_brg_client: "No"
+  referral_name: "Jane Smith"
+  available_start_date: "02/20/2025"
+
+work_authorization:
+  legal_right_to_work: "Yes"
+  requires_visa_sponsorship: "No"
+  current_work_status: "Employed"
+  visa_sponsorship_needed: "No"
+  currently_reside_in_usa: "Yes"
