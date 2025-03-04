@@ -1,17 +1,9 @@
-jobvite:
-  email: "rohithyadav628169@gmail.com"
-  password: "Test@1"
-  job_links:
-    - "https://jobs.jobvite.com/jobvite/job/oZ3ivfwz"
-    # - "https://jobs.jobvite.com/careers/egnyte/job/o2Cgvfw9?__jvst=Job%20Board&__jvsd=Aaron_LI_Post"
-    # - "https://jobs.jobvite.com/careers/egnyte/job/oIogvfwB?__jvst=Job%20Board&__jvsd=Aaron_LI_Post"
-
-resume_file: "resume/Sunil Resume.pdf"
+resume_file: "resume/resume.pdf"
 first_name: "Rohith"
 last_name: "Yadav"
 pronouns : "he/him"
 gender : "Male"
-email: "rohithyadav628169@gmail.com"
+email: "rohith@example.com"
 phone: "+1-123-456-7890"
 address: "123 Main St"
 city: "New York"

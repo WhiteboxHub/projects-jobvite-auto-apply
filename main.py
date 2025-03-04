@@ -3,6 +3,7 @@ import time
 import yaml
 import logging
 import os
+import csv
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -10,6 +11,7 @@ from selenium.webdriver.support import expected_conditions as EC
 from selenium.common.exceptions import TimeoutException, NoSuchElementException, ElementClickInterceptedException
 from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
+from selenium.webdriver.common.keys import Keys
 
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
@@ -17,12 +19,49 @@ logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(
 
 with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
+
+applied_jobs_file = "applied_jobs.yaml"
+job_links = "jobs/linkedin_jobs.csv"
+
+def load_applied_jobs():
+    if os.path.exists(applied_jobs_file):
+        with open(applied_jobs_file, "r") as file:
+            return yaml.safe_load(file) or {}
+    return {}
+
+def save_applied_jobs(data):
+    with open(applied_jobs_file, "w") as file:
+        yaml.dump(data, file)
+
+def log_job_status(job_link, status):
+    jobs_data = load_applied_jobs()
+    jobs_data[job_link] = status
+    save_applied_jobs(jobs_data)
+
+
+def load_jobs():
+    job_links = "jobs/linkedin_jobs.csv"
+    jobvite_links = []  
     
+    if os.path.exists(job_links):
+        with open(job_links, "r") as file:
+            reader = csv.reader(file)
+            next(reader)  
+            for row in reader:
+               
+                if row and len(row) > 0:
+                    link = row[0]
+        
+                    if "jobvite" in link.lower():
+                        jobvite_links.append(link)
+                else:
+                    logging.warning(f"Skipping empty or malformed row: {row}")
+    
+    return jobvite_links
 
-with open("config.yaml", "r") as file:
-    resume_data = yaml.safe_load(file)
 
-resume_file = resume_data.get("resume_file", "resume/Sunil.pdf")
+
+resume_file = config.get("resume_file", "resume.pdf")
 
 
 resume_path = os.path.abspath(resume_file) 
@@ -77,20 +116,20 @@ def click_element(driver, xpath, description):
 def fill_name_fields(driver):
 
     input_value = {
-                "first_name" : resume_data.get("first_name"),
-                "last_name" : resume_data.get("last_name"),
-                "pronouns" : resume_data.get("pronouns"),
-                "email" : resume_data.get("email"),
-                "phone" : resume_data.get("phone"),
-                "address": resume_data.get("address"),
-                "city" : resume_data.get("city"),
-                "state" : resume_data.get("state"),
-                "zip" : resume_data.get("zip"),
-                "country" : resume_data.get("country"),
-                "referred" : resume_data.get("referred"),
-                "compensation" : resume_data.get("compensation"),
-                "work_status" : resume_data.get("work_status"),
-                "work_authorization" : resume_data.get("work_authorization")
+                "first_name" : config.get("first_name"),
+                "last_name" : config.get("last_name"),
+                "pronouns" : config.get("pronouns"),
+                "email" : config.get("email"),
+                "phone" : config.get("phone"),
+                "address": config.get("address"),
+                "city" : config.get("city"),
+                "state" : config.get("state"),
+                "zip" : config.get("zip"),
+                "country" : config.get("country"),
+                "referred" : config.get("referred"),
+                "compensation" : config.get("compensation"),
+                "work_status" : config.get("work_status"),
+                "work_authorization" : config.get("work_authorization")
     
 
     }
@@ -138,8 +177,6 @@ def fill_name_fields(driver):
 
 
 
-
-
 def upload_resume(driver, resume_path):
     
     try:
@@ -174,6 +211,8 @@ def apply_to_job(job_link):
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", select_button)
         time.sleep(1)
 
+        logging.info("Clicked 'Send Application' button.")
+
         try:
             select_button.click()
             logging.info("Clicked Select button for resume upload.")
@@ -198,53 +237,49 @@ def apply_to_job(job_link):
         logging.info("Next Button Clicked  successfully!")
 
 
-        with open("config.yaml", "r") as file:
-            resume_data = yaml.safe_load(file) 
 
-
-        gender_mapping = {
-            "Male": "jv-field-gender-0",
-            "Female": "jv-field-gender-1",
-            "decline": "jv-field-gender-2"
-        }
-
-        
-        selected_gender = resume_data.get("gender")
-        print(f"------------------------------------------------selected_gender________--------------{selected_gender}")
-        gender_value = gender_mapping.get(selected_gender)
-
-        try:
-        
-            print("------------------strated gender selection--------------------------")
-            radio_button = wait.until(EC.element_to_be_clickable((By.ID, gender_mapping[selected_gender])))
-            driver.execute_script("arguments[0].scrollIntoView(true);", radio_button) 
-            driver.execute_script("arguments[0].click();", radio_button) 
-            print(f"Selected {selected_gender} successfully.")
-        except Exception as e:
-            print(f"Error selecting {selected_gender}: {e}")
-
-
-
-    
-        
         send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'jv-button-primary') and contains(., 'Send Application')]")))
         
         driver.execute_script("arguments[0].click();", send_button)
         logging.info("Clicked 'Send Application' button.")
+        try:
+            confirmation_message = wait.until(EC.presence_of_element_located(
+                (By.XPATH, "//div[contains(text(), 'Your application has been submitted')]")
+            ))
+            logging.info("Application submitted successfully!")
+            log_job_status(job_link, "Successfully Applied")
 
-        confirmation_message = wait.until(EC.presence_of_element_located((By.XPATH, "//div[contains(text(), 'Your application has been submitted')]")))
-        logging.info("Application submitted successfully!")
+        except TimeoutException:
+            try:
+                already_applied_message = wait.until(EC.presence_of_element_located(
+                    (By.XPATH, "//div[contains(text(), 'already applied')] | //div[contains(text(), \"You've already applied!\")]")
+                ))
+                logging.info("You have already submitted the application.")
+                log_job_status(job_link, "Already Applied")
+            except TimeoutException:
+                logging.error("Unable to submit the application and no confirmation message found.")
+                log_job_status(job_link, "Submission Failed")
+
 
     except TimeoutException:
         logging.error(f"Timeout: Could not find elements for job {job_link}")
+
+        log_job_status(job_link, "Failed")
     except NoSuchElementException as e:
         logging.error(f"Error applying for job: {e}")
 
+        log_job_status(job_link, "Failed")
+
+
     
 
-
 def main():
-    for job in config["jobvite"]["job_links"]:
+    applied_jobs = load_applied_jobs()
+    job_links = load_jobs()
+    for job in job_links:
+        if job in applied_jobs and applied_jobs[job] == "Successfully Applied":
+            logging.info(f"Skipping already applied job: {job}")
+            continue
         apply_to_job(job)
     driver.quit()
 
