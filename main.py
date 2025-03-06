@@ -17,7 +17,7 @@ from selenium.webdriver.common.keys import Keys
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-with open("config.yaml", "r") as file:
+with open("job_application_config.yaml", "r") as file:
     config = yaml.safe_load(file)
 
 applied_jobs_file = "applied_jobs.yaml"
@@ -85,44 +85,90 @@ def load_jobs():
 
 locators = {
     "country_select": {"selector": "#jv-country-select", "type": "select", "value": "c3a38d35-2bc8-40af-af8e-02457a174c32"},
-    "first_name": {"selector": "input[placeholder='First Name']", "type": "input", "value": "King"},
+    "first_name": {"selector": "#jv-field-yiYcYfwa", "type": "input", "value":  config["first_name"]},
+    "last_name": {"selector": "#jv-field-yhYcYfw9", "type": "input", "value": config["last_name"]},
+    "email": {"selector": "#jv-field-ygYcYfw8", "type": "input", "value": config["email"]},
+    "phone": {"selector": "#jv-field-yjYcYfwb", "type": "input", "value": config["phone"]},
+    "work_status": {"selector": "#jv-field-ymIyZfwl", "type": "select", "value": config["work_status"]},
+    "work_authorization": {"selector": "#jv-field-yUfzZfwr", "type": "select", "value": config["work_authorization"]},
+    "gender": {"selector": "#jv-form-field-legend ng-binding", "type": "radio", "value": config["gender"]},
     
 }
 
 
 interacted_elements = set()
 
-def interact_with_element(driver, selector, element_type, value=None):
-    """ Interacts with a web element and adds it to the interacted_elements set. """
+def interact_with_element(driver, css_selector, element_type, value=None):
+    
     try:
-        element = WebDriverWait(driver, 20).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, selector))  
+       
+        element = WebDriverWait(driver, 0).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, css_selector))
         )
+
+       
         if element_type == "input":
-            element.clear()
-            element.send_keys(value or "Test Input")
+            
+            if value:
+                element.clear()
+                element.send_keys(value)
+            else:
+              
+                field_name = None
+                if "autocomplete" in element.attrs:
+                    field_name = element.get_attribute("autocomplete").lower().replace(" ", "_")
+                elif "name" in element.attrs:
+                    field_name = element.get_attribute("name").lower().replace(" ", "_")
+                elif "id" in element.attrs:
+                    field_name = element.get_attribute("id").lower().replace(" ", "_")
+
+                if field_name:
+                    print(f"Extracted field name: --------------------------------------{field_name}-------------")  
+                    value_from_config = config.get(field_name)  
+                    if value_from_config:
+                        element.clear()
+                        element.send_keys(value_from_config)
+                    else:
+                        print(f"No value found in config for {field_name}, sending default text.")
+                        element.clear()
+                        element.send_keys("AutoFilled") 
+                else:
+                    print("Field name not found in element attributes, cannot determine field name.")
+                    element.clear()
+                    element.send_keys("AutoFilled")
+
+     
         elif element_type == "button":
             element.click()
+
+      
         elif element_type == "select":
             select = Select(element)
-            select.select_by_visible_text(value or select.options[1].text)  
+            select.select_by_visible_text(value or select.options[1].text) 
+
+      
         elif element_type in ["radio", "checkbox"]:
             if not element.is_selected():
                 element.click()
+
+     
         elif element_type == "textarea":
             element.clear()
             element.send_keys(value or "Sample text")
+
         else:
             print(f"Unsupported element type: {element_type}")
             return False
-        
-        
+
+       
         interacted_elements.add(element)
         return True
+
     except Exception as e:
         print(f"Error interacting with element ({css_selector}): {e}")
         return False
 
+        
 def execute_automation(driver):
     """ Loops through locators and interacts with them. """
     for key, locator in locators.items():
@@ -135,10 +181,12 @@ def execute_automation(driver):
 
         value = locator.get("value", "")
         print(f"Interacting with: {key}")
-        interact_with_element(driver=driver, selector = css_selector, element_type=element_type,value= value)
+        interact_with_element(driver, css_selector, element_type,value)
 
-def handle_uninteracted_required_elements(driver):
-    """ Finds all form elements not in interacted_elements and interacts if required. """
+
+
+def handle_uninteracted_required_elements(driver, config):
+
     all_form_elements = driver.find_elements(By.CSS_SELECTOR, "input, select, textarea")
     for element in all_form_elements:
         if element not in interacted_elements: 
@@ -147,21 +195,36 @@ def handle_uninteracted_required_elements(driver):
                 if is_required:
                     tag_name = element.tag_name.lower()
                     element_type = element.get_attribute("type") or ""
+                    print(f"Processing {tag_name} -----------------------------element with required={is_required}") 
+
                     if tag_name == "input":
-                        if element_type in ["text", "email", "password", "number"]:
-                            element.send_keys("AutoFilled")
-                        elif element_type in ["radio", "checkbox"]:
-                            if not element.is_selected():
-                                element.click()
+                        field_name = element.get_attribute("placeholder")
+                        if field_name:  
+                            print(f"Placeholder: ---------------------{field_name}") 
+                        else:
+                            field_name = "default_field_name"
+                            print(f"Field has no placeholder. Using default name: ---------------------{field_name}")  
+
+                        field_name_transformed = field_name.replace(" ", "_").lower()
+                        print(f"Transformed field name:-------------------- {field_name_transformed}")  
+
+                        value_from_config = config.get(field_name_transformed)
+                        if value_from_config:
+                            print(f"Filling {field_name} with ---------------------{value_from_config}------------")  
+                            element.send_keys(value_from_config)  
+                        else:
+                            print(f"No config value for {field_name}. ---------------Using fallback-----------------")  
+                            element.send_keys("AutoFilled") 
+
                     elif tag_name == "textarea":
                         element.send_keys("AutoFilled Text")
                     elif tag_name == "select":
                         select = Select(element)
-                        select.select_by_index(1) 
-                    print(f"Auto-filled required element: {element.get_attribute('outerHTML')}")
-            except Exception as e:
-                print(f"Error processing required element: {e}")
+                        select.select_by_index(1)
 
+                    print(f"Auto-filled required element: -------------------{element.get_attribute('outerHTML')}")
+            except Exception as e:
+                print(f"Error processing required element:-------------------- {e}----------")
 
 
 resume_text = "resume/resume.txt"
@@ -205,7 +268,13 @@ def upload_resume(driver, resume_text):
 
         time.sleep(1)
 
-     
+        save_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "button.jv-button.jv-button-primary[ng-disabled='!pastedText']"))
+        )
+
+        save_button.click()
+        logging.info("Clicked the 'Save' button after pasting the resume.")
+
         time.sleep(5)
     except NoSuchElementException as e:
         logging.error(f"Element not found during resume upload: {e}")
@@ -220,17 +289,20 @@ def apply_to_job(job_id, job_link):
     driver.get(job_link)
 
     try:
+
         apply_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Apply') or contains(@class, 'apply-button')]")))
         apply_button.click()
         logging.info("Clicked Apply button.")
-        time.sleep(3)  
+        time.sleep(5)  
+                
+        execute_automation(driver)
+        handle_uninteracted_required_elements(driver, config)
 
         select_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Select')]")))
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", select_button)
         time.sleep(1)
 
 
-        # run_jobvite_automation(driver)
 
         try:
             select_button.click()
@@ -245,11 +317,17 @@ def apply_to_job(job_id, job_link):
 
         upload_resume(driver, resume_text)
 
+        execute_automation(driver)
+        handle_uninteracted_required_elements(driver, config)
+
     
         next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]")))
         next_button.click()
         time.sleep(20)
         logging.info("Next Button Clicked  successfully!")
+
+        execute_automation(driver)
+        handle_uninteracted_required_elements(driver, config)
 
 
 
@@ -284,11 +362,6 @@ def apply_to_job(job_id, job_link):
         logging.error(f"Error applying for job: {e}")
 
         log_job_status(job_link, "Failed")
-
-def run_jobvite_automation(driver):
-   
-    execute_automation(driver)
-    handle_uninteracted_required_elements(driver)
 
     
 def main():
