@@ -21,7 +21,8 @@ with open("config.yaml", "r") as file:
     config = yaml.safe_load(file)
 
 applied_jobs_file = "applied_jobs.yaml"
-job_links = "jobs/linkedin_jobs.csv"
+job_csv_file = "jobs\linkedin_jobs.csv"
+BASE_URL = "https://jobs.jobvite.com"
 
 def load_applied_jobs():
     if os.path.exists(applied_jobs_file):
@@ -38,6 +39,27 @@ def log_job_status(job_link, status):
     jobs_data[job_link] = status
     save_applied_jobs(jobs_data)
 
+
+def generate_job_links(csv_filename):
+    job_links = []
+    try:
+        with open(csv_filename, mode='r', newline='', encoding='utf-8') as file:
+            reader = csv.DictReader(file)
+            for row in reader:
+                platform = row.get("platform", "").strip().lower()
+                relative_url = row.get("url", "").strip()
+                job_id = row.get("jobid", "").strip()
+
+                if platform == "jobvite" and relative_url.startswith("/"):
+                    full_url = f"{BASE_URL}{relative_url}"
+                    job_links.append((job_id, full_url))
+                else:
+                    logging.warning(f"Skipping invalid row: {row}")
+                    
+    except FileNotFoundError:
+        logging.error(f"CSV file {csv_filename} not found.")
+    
+    return job_links
 
 def load_jobs():
     job_links = "jobs/linkedin_jobs.csv"
@@ -61,10 +83,91 @@ def load_jobs():
 
 
 
-resume_file = config.get("resume_file", "resume.pdf")
+locators = {
+    "country_select": {"selector": "#jv-country-select", "type": "select", "value": "c3a38d35-2bc8-40af-af8e-02457a174c32"},
+    "first_name": {"selector": "input[placeholder='First Name']", "type": "input", "value": "King"},
+    
+}
 
 
-resume_path = os.path.abspath(resume_file) 
+interacted_elements = set()
+
+def interact_with_element(driver, selector, element_type, value=None):
+    """ Interacts with a web element and adds it to the interacted_elements set. """
+    try:
+        element = WebDriverWait(driver, 20).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, selector))  
+        )
+        if element_type == "input":
+            element.clear()
+            element.send_keys(value or "Test Input")
+        elif element_type == "button":
+            element.click()
+        elif element_type == "select":
+            select = Select(element)
+            select.select_by_visible_text(value or select.options[1].text)  
+        elif element_type in ["radio", "checkbox"]:
+            if not element.is_selected():
+                element.click()
+        elif element_type == "textarea":
+            element.clear()
+            element.send_keys(value or "Sample text")
+        else:
+            print(f"Unsupported element type: {element_type}")
+            return False
+        
+        
+        interacted_elements.add(element)
+        return True
+    except Exception as e:
+        print(f"Error interacting with element ({css_selector}): {e}")
+        return False
+
+def execute_automation(driver):
+    """ Loops through locators and interacts with them. """
+    for key, locator in locators.items():
+        print(f"---------------------------{locator}----------------------------")
+        css_selector = locator["selector"]
+        print(f"---------------------------{css_selector}----------------------------")
+
+        element_type = locator["type"]
+        print(f"---------------------------{element_type}----------------------------")
+
+        value = locator.get("value", "")
+        print(f"Interacting with: {key}")
+        interact_with_element(driver=driver, selector = css_selector, element_type=element_type,value= value)
+
+def handle_uninteracted_required_elements(driver):
+    """ Finds all form elements not in interacted_elements and interacts if required. """
+    all_form_elements = driver.find_elements(By.CSS_SELECTOR, "input, select, textarea")
+    for element in all_form_elements:
+        if element not in interacted_elements: 
+            try:
+                is_required = element.get_attribute("required") is not None
+                if is_required:
+                    tag_name = element.tag_name.lower()
+                    element_type = element.get_attribute("type") or ""
+                    if tag_name == "input":
+                        if element_type in ["text", "email", "password", "number"]:
+                            element.send_keys("AutoFilled")
+                        elif element_type in ["radio", "checkbox"]:
+                            if not element.is_selected():
+                                element.click()
+                    elif tag_name == "textarea":
+                        element.send_keys("AutoFilled Text")
+                    elif tag_name == "select":
+                        select = Select(element)
+                        select.select_by_index(1) 
+                    print(f"Auto-filled required element: {element.get_attribute('outerHTML')}")
+            except Exception as e:
+                print(f"Error processing required element: {e}")
+
+
+
+resume_text = "resume/resume.txt"
+
+
+resume_path = os.path.abspath(resume_text)
 
 if not os.path.isfile(resume_path):
     logging.error(f"Resume file not found at {resume_path}")
@@ -78,125 +181,40 @@ driver = webdriver.Chrome(service=service, options=options)
 wait = WebDriverWait(driver, 20)
 
 
-def fill_textbox(driver, label_text, value):
+
+def upload_resume(driver, resume_text):
     try:
-        label = driver.find_element(By.XPATH, f"//label[contains(text(), '{label_text}')]")
-        input_field = label.find_element(By.XPATH, "./following-sibling::input | ./following-sibling::textarea")
-        input_field.clear()
-        input_field.send_keys(value)
-        logging.info(f"Filled {label_text} with {value}")
-    except NoSuchElementException:
-        logging.warning(f"Could not find input field for label: {label_text}")
+        with open(resume_path, 'r') as file:
+            resume_text = file.read()
 
 
-def select_dropdown(driver, label_text, value):
-    
-    try:
-        label = driver.find_element(By.XPATH, f"//label[contains(text(), '{label_text}')]")
-        dropdown = label.find_element(By.XPATH, "./following-sibling::select")
-        for option in dropdown.find_elements(By.TAG_NAME, "option"):
-            if option.text == value:
-                option.click()
-                logging.info(f"Selected {value} for {label_text}")
-                break
-    except NoSuchElementException:
-        logging.warning(f"Could not find dropdown for label: {label_text}")
-
-
-def click_element(driver, xpath, description):
-
-    try:
-        element = wait.until(EC.element_to_be_clickable((By.XPATH, xpath)))
-        driver.execute_script("arguments[0].scrollIntoView();", element)
-        element.click()
-        logging.info(f"Clicked {description}")
-    except (TimeoutException, ElementClickInterceptedException) as e:
-        logging.error(f"Failed to click {description}: {e}")
-
-def fill_name_fields(driver):
-
-    input_value = {
-                "first_name" : config.get("first_name"),
-                "last_name" : config.get("last_name"),
-                "pronouns" : config.get("pronouns"),
-                "email" : config.get("email"),
-                "phone" : config.get("phone"),
-                "address": config.get("address"),
-                "city" : config.get("city"),
-                "state" : config.get("state"),
-                "zip" : config.get("zip"),
-                "country" : config.get("country"),
-                "referred" : config.get("referred"),
-                "compensation" : config.get("compensation"),
-                "work_status" : config.get("work_status"),
-                "work_authorization" : config.get("work_authorization")
-    
-
-    }
-
-    fields = {
-                "first_name" : "//label[contains(text(), 'First Name')]/following-sibling::div//input",
-                "last_name" : "//label[contains(text(), 'Last Name')]/following-sibling::div//input",
-                "pronouns" : "//label[contains(text(), 'Preferred Pronouns')]/following-sibling::div//select",
-                "email" : "//label[contains(text(), 'Email')]/following-sibling::div//input",
-                "phone" : "//label[contains(text(), 'Phone')]/following-sibling::div//input",
-                "address" : "//label[contains(text(), 'Address')]/following-sibling::div//input",
-                "city" : "//label[contains(text(), 'City')]/following-sibling::div//input",
-                "state" : "//label[contains(text(), 'State')]/following-sibling::div//select",
-                "zip" : "//label[contains(text(), 'Zip')]/following-sibling::div//input",
-                "country" : "//label[contains(text(), 'Country')]/following-sibling::div//select",
-                "referred" : "//label[contains(text(), 'referred by')]/following-sibling::div/input",
-                "compensation" : "//label[contains(text(), 'Desired Compensation')]/following-sibling::div/input",
-                "work_status" : "//label[contains(text(), 'Work Status')]/following-sibling::div//select",
-                "work_authorization" : "//label[contains(text(), 'Work Authorization')]/following-sibling::div//select",
-
-
-
-    }
-   
-
-    def fill_field(field_xpath,field_value):
-
-        try:
-            field_ip  = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.XPATH, field_xpath))
+        paste_resume_button = WebDriverWait(driver, 10).until(
+            EC.element_to_be_clickable((By.CSS_SELECTOR, "span.jv-text-block.jv-text-link.needsclick.ng-binding"))
         )
-           
-            try:
-                field_ip.clear()
-                field_ip.send_keys(field_value)
-            except Exception as e:
-                select = Select(field_ip)
-                select.select_by_visible_text(field_value)
-                print(f'-------------------select input selected with value {field_value}')
-        except Exception as e:
-            print(f"{e}{field_xpath} filed not found , can't enter the field values ----------------")
-   
-    for key,value in fields.items():
-        fill_field(value,input_value[key])
+        paste_resume_button.click()
+        logging.info("Selected 'Type or Paste Resume' option.")
 
+        time.sleep(10)
 
+        textarea = WebDriverWait(driver, 10).until(
+            EC.visibility_of_element_located((By.CSS_SELECTOR, "#jv-paste-resume-textarea0"))
+        )
+        textarea.clear()  
+        textarea.send_keys(resume_text)  
+        logging.info("Pasted resume text into the textarea.")
 
-def upload_resume(driver, resume_path):
-    
-    try:
-        file_input = driver.find_element(By.XPATH, "//input[@type='file']")
-        file_input.send_keys(resume_path)  
-        logging.info(f"Uploaded resume from {resume_path}")
-        
         time.sleep(1)
 
-        pyautogui.press("esc")
-        logging.info("Pressed ESC to close the file selection dialog.")
-
-        fill_name_fields(driver)
-
+     
         time.sleep(5)
-    except NoSuchElementException:
-        logging.error("File input element not found for resume upload")
+    except NoSuchElementException as e:
+        logging.error(f"Element not found during resume upload: {e}")
+    except Exception as e:
+        logging.error(f"An error occurred: {e}")
 
 
-def apply_to_job(job_link):
+
+def apply_to_job(job_id, job_link):
     
     logging.info(f"Opening job link: {job_link}")
     driver.get(job_link)
@@ -211,24 +229,21 @@ def apply_to_job(job_link):
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", select_button)
         time.sleep(1)
 
-        logging.info("Clicked 'Send Application' button.")
+
+        # run_jobvite_automation(driver)
 
         try:
             select_button.click()
             logging.info("Clicked Select button for resume upload.")
+
         except Exception as e:
             logging.warning(f"Click intercepted. Trying JavaScript click instead. Error: {e}")
             driver.execute_script("arguments[0].click();", select_button)
 
-        file_option_xpath = "//*[@id='attachmentDropdown']/div[2]/label/span[contains(text(), 'File')]"
-        file_option = wait.until(EC.element_to_be_clickable((By.XPATH, file_option_xpath)))
+            
+        time.sleep(5)
 
-        
-        driver.execute_script("arguments[0].scrollIntoView();", file_option)
-        file_option.click()
-        logging.info("Clicked 'File' option for resume upload.")
-
-        upload_resume(driver, resume_path)
+        upload_resume(driver, resume_text)
 
     
         next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]")))
@@ -270,17 +285,23 @@ def apply_to_job(job_link):
 
         log_job_status(job_link, "Failed")
 
+def run_jobvite_automation(driver):
+   
+    execute_automation(driver)
+    handle_uninteracted_required_elements(driver)
 
     
-
 def main():
+    
     applied_jobs = load_applied_jobs()
-    job_links = load_jobs()
-    for job in job_links:
-        if job in applied_jobs and applied_jobs[job] == "Successfully Applied":
-            logging.info(f"Skipping already applied job: {job}")
+    job_links = generate_job_links(job_csv_file)
+
+    for job_id, job_link in job_links:
+        if job_link in applied_jobs and applied_jobs[job_link] == "Successfully Applied":
+            logging.info(f"Skipping already applied job: {job_id}")
             continue
-        apply_to_job(job)
+        apply_to_job(job_id, job_link)
+
     driver.quit()
 
 

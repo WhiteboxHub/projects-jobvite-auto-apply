@@ -1,9 +1,6 @@
-job_links
-https://boards.greenhouse.io/gatikaiinc/jobs/4410158006
-https://jobs.lever.co/goodleap/10788466-0e2d-4e8f-936c-f86e8dc8f9db/apply
-https://jobs.jobvite.com/jobvite/job/oZ3ivfwz
-https://boards.greenhouse.io/gatikaiinc/jobs/4410158006
-https://jobs.jobvite.com/careers/egnyte/job/o2Cgvfw9?__jvst=Job%20Board&__jvsd=Aaron_LI_Post
-https://jobs.jobvite.com/careers/egnyte/job/oIogvfwB?__jvst=Job%20Board&__jvsd=Aaron_LI_Post
-https://jobs.jobvite.com/jobvite/job/oZsjvfwZ
+platform,url, company, jobid
+jobvite,/careers/egnyte/job/oIogvfwB,egnyte,oIogvfwB
+jobvite,/careers/egnyte/job/o2Cgvfw9,egnyte,o2Cgvfw9
+jobvite,/jobvite/job/oZ3ivfwz,job,oZ3ivfwz
+
 
