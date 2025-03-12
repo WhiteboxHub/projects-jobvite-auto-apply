@@ -1,4 +1,3 @@
-import pyautogui
 import time
 import yaml
 import logging
@@ -13,15 +12,13 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 
-
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
 
 with open("job_application_config.yaml", "r") as file:
     config = yaml.safe_load(file)
 
 applied_jobs_file = "applied_jobs.yaml"
-job_csv_file = "jobs\linkedin_jobs.csv"
+job_csv_file = "jobs/linkedin_jobs.csv"
 BASE_URL = "https://jobs.jobvite.com"
 
 def load_applied_jobs():
@@ -39,7 +36,6 @@ def log_job_status(job_link, status):
     jobs_data[job_link] = status
     save_applied_jobs(jobs_data)
 
-
 def generate_job_links(csv_filename):
     job_links = []
     try:
@@ -55,183 +51,132 @@ def generate_job_links(csv_filename):
                     job_links.append((job_id, full_url))
                 else:
                     logging.warning(f"Skipping invalid row: {row}")
-                    
+
     except FileNotFoundError:
         logging.error(f"CSV file {csv_filename} not found.")
-    
+
     return job_links
 
 def load_jobs():
     job_links = "jobs/linkedin_jobs.csv"
-    jobvite_links = []  
-    
+    jobvite_links = []
+
     if os.path.exists(job_links):
         with open(job_links, "r") as file:
             reader = csv.reader(file)
-            next(reader)  
+            next(reader)
             for row in reader:
-               
                 if row and len(row) > 0:
                     link = row[0]
-        
                     if "jobvite" in link.lower():
                         jobvite_links.append(link)
                 else:
                     logging.warning(f"Skipping empty or malformed row: {row}")
-    
+
     return jobvite_links
 
-
 locators = {
-    # "country_select": {"xpath": "//label[contains(text(), 'Select your location of residence and language')]/following-sibling::div//select", "value": "US / Uk / India"},
-    "first_name": {"xpath": "//label[contains(text(), 'First') and contains(text(), 'Name')]/following-sibling::div//input", "value": config["first_name"]},
-    "last_name": {"xpath": "//label[contains(text(), 'Last') and contains(text(), 'Name')]/following-sibling::div//input", "value": config["last_name"]},
-    "email": {"xpath": "//label[contains(text(), 'Email')]/following-sibling::div//input", "value": config["email"]},
-    "phone": {"xpath": "//label[contains(text(), 'Phone')]/following-sibling::div//input", "value": config["phone"]},
-    "address": {"xpath": "//label[contains(text(), 'Address')]/following-sibling::div//input", "value": config["address"]},
-    "city": {"xpath": "//label[contains(text(), 'City')]/following-sibling::div//input", "value": config["city"]},
-    "state": {"xpath": "//label[contains(text(), 'State')]/following-sibling::div//select", "value": config["state"]},
-    "zip": {"xpath": "//label[contains(text(), 'Zip')]/following-sibling::div//input", "value": config["zip"]},
-    "country": {"xpath": "//label[contains(text(), 'Country')]/following-sibling::div//select", "value": config["country"]},
-    "salary": {"xpath": "//label[contains(text(), 'Salary') or contains(text(), 'Compensation')]/following-sibling::div//input", "value": config["salary"]},
-    "referral_source": {"xpath": "//label[contains(text(), 'How did you hear about this job')]/following-sibling::div//select", "value": config["referral_source"]},
-    "work_status": {"xpath": "//label[contains(text(), 'Work Status')]/following-sibling::div//select", "value": config["work_status"]},
-    "work_authorization": {"xpath": "//label[contains(text(), 'Work Authorization')]/following-sibling::div//select", "value": config["work_authorization"]},
-    "gender": {"xpath": "//label[contains(text(), 'Gender')]/following-sibling::div//input[@value='Male']", "value": config["gender"]},
+    # "country_select": {"selector": "select#jv-country-select", "type": "select", "value": "c3a38d35-2bc8-40af-af8e-02457a174c32"},
+    "first_name": {"selector": "input[autocomplete='given-name'][type='text'][maxlength='100']", "type": "input", "value": config["first_name"]},
+    "last_name": {"selector": "input[autocomplete='family-name'][type='text'][maxlength='100']", "type": "input", "value": config["last_name"]},
+    "email": {"selector": "input[autocomplete='email'][type='text']", "type": "input", "value": config["email"]},
+    "phone": {"selector": "input[autocomplete='tel'][type='tel']", "type": "input", "value": config["phone"]},
+    "address": {"selector": "input[autocomplete='address-line1'][type='text'][maxlength='100']", "type": "input", "value": config["address"]},
 
+    "city": {"selector": "input[autocomplete='address-level2'][type='text'][maxlength='100']", "type": "input", "value": config["city"]},
+    "state": {"selector": "select[autocomplete='address-level1']", "type": "select", "value": config["state"]},
+    "zip": {"selector": "input[autocomplete='postal-code'][type='text'][maxlength='100']", "type": "input", "value": config["zip"]},
+   
+    "country": {"selector": "select[autocomplete='country-name'][required]", "type": "select", "value": config["country"]},
+    "visa_status": { "selector": "select[id^='jv-field-'][name^='input-'][autocomplete='on'][required]", "type": "select", "value": config["visa_status"] },
+
+    "work_authorization": {"selector": "select[id^='jv-field-'][name^='input-'][autocomplete='on'][required]", "type": "select", "value": config["work_authorization"]},
+    "gender": { "selector": "select[autocomplete='on'][aria-required='false'][ng-required='field.required']", "type": "select", "value": config["gender"] },
+    # "gender_radio": { "selector": "input[type='radio'][name='gender']", "type": "radio", "value": config["gender"]},
+    # "referred": {"selector": "input[autocomplete='on'][required]", "type": "text", "value": config["referred"]},
+    #"gender": {"selector": "input[type='radio'][id*='gender'][value='Male']", "type": "radio", "value": config["gender"]},
 }
 
 interacted_elements = set()
 
-def interact_with_element(driver, xpath, element_type, value=None):
+def interact_with_element(driver, css_selector, element_type, value=None):
     try:
-        element = WebDriverWait(driver, 5).until(
-            EC.element_to_be_clickable((By.XPATH, xpath))
+        element = WebDriverWait(driver, 10).until(
+            EC.presence_of_element_located((By.CSS_SELECTOR, css_selector))
         )
 
+        if element in interacted_elements:
+            return True 
+
         if element_type == "input":
-            if value:
-                element.clear()
-                element.send_keys(value)
-            else:
-                field_name = None
-                if "autocomplete" in element.get_attribute("outerHTML"):
-                    field_name = element.get_attribute("autocomplete").lower().replace(" ", "_")
-                elif "name" in element.get_attribute("outerHTML"):
-                    field_name = element.get_attribute("name").lower().replace(" ", "_")
-                elif "id" in element.get_attribute("outerHTML"):
-                    field_name = element.get_attribute("id").lower().replace(" ", "_")
-
-                if field_name:
-                    print(f"Extracted field name: {field_name}")  
-                    value_from_config = config.get(field_name)  
-                    if value_from_config:
-                        element.clear()
-                        element.send_keys(value_from_config)
-                    else:
-                        print(f"No value found in config for {field_name}, sending default text.")
-                        element.clear()
-                        element.send_keys(" ") 
-                else:
-                    print("Field name not found in element attributes, cannot determine field name.")
-                    element.clear()
-                    element.send_keys(" ")
-
-        elif element_type == "button":
-            element.click()
+            element.clear()
+            element.send_keys(value or "")
 
         elif element_type == "select":
             select = Select(element)
-            if value:
-                try:
-                    select.select_by_value(value)
-                except:
-                    print(f"Failed to select by value: {value}, attempting to select by visible text.")
-                    select.select_by_visible_text(value)
-            else:
-                visible_text = ""  #select.options[1].text  
-                select.select_by_visible_text(visible_text)
-
-        elif element_type == "radio":
             try:
-                label_xpath = f"//label[input[@type='radio' and @value='{value}']]" 
-                label = WebDriverWait(driver, 5).until(
-                EC.element_to_be_clickable((By.XPATH, label_xpath))
-                )
-                label.click()
-                print(f"Clicked label for radio button: {value}")
-            except Exception as e:
-                print(f"Error clicking radio button label ({label_xpath}): {e}")
+                select.select_by_value(value)
+            except:
+                select.select_by_visible_text(value)
 
+        elif element_type in ["radio", "checkbox"] and not element.is_selected():
+            element.click()
 
         elif element_type == "textarea":
             element.clear()
             element.send_keys(value)
 
-        else:
-            print(f"Unsupported element type: {element_type}")
-            return False
+        elif element_type == "button":
+            element.click()
 
-        interacted_elements.add(element)
+        interacted_elements.add(element)  
         return True
 
     except Exception as e:
-        print(f"Error interacting with element ({xpath}): {e}")
+        logging.error(f"Error interacting with element ({css_selector}): {e}")
         return False
 
 def execute_automation(driver):
     for key, locator in locators.items():
-        xpath = locator["xpath"]
-        element_type = "input" if "input" in xpath else "select" if "select" in xpath else "button" 
-        value = locator.get("value", "")
-        interact_with_element(driver, xpath, element_type, value)
+        interact_with_element(driver, locator["selector"], locator["type"], locator.get("value", ""))
 
 def wait_until_all_required_filled(driver):
     while True:
         missing_fields = []
         all_form_elements = driver.find_elements(By.XPATH, "//input | //select | //textarea")
+
         for element in all_form_elements:
+            if element in interacted_elements:
+                continue  
+
             if element.get_attribute("required") is not None:
                 if element.get_attribute("value") in [None, ""]:
                     missing_fields.append(element)
-        
+
         if not missing_fields:
-            break  
-        
+            break
+
         logging.info(f"Waiting for {len(missing_fields)} required fields to be filled...")
-        time.sleep(2)
+        time.sleep(5)
 
 def handle_uninteracted_required_elements(driver, config):
-    all_form_elements = driver.find_elements(By.XPATH, "//input | //select | //textarea")
+    all_form_elements = driver.find_elements(By.CSS_SELECTOR, "input, select, textarea")
     for element in all_form_elements:
         if element not in interacted_elements:
             try:
                 is_required = element.get_attribute("required") is not None
                 if is_required:
-                    tag_name = element.tag_name.lower()
-                    if tag_name == "input":
-                        field_name = element.get_attribute("placeholder") or "default_field_name"
-                        field_name_transformed = field_name.replace(" ", "_").lower()
-                        value_from_config = config.get(field_name_transformed)
-                        element.send_keys(value_from_config or " ")
-                    elif tag_name == "textarea":
-                        element.send_keys("  Text")
-                  
+                    element.clear()
+                    element.send_keys(config.get(element.get_attribute("name"), ""))
             except Exception as e:
                 print(f"Error processing required element: {e}")
 
-
-
-
 resume_text = "resume/resume.txt"
-
-
 resume_path = os.path.abspath(resume_text)
 
 if not os.path.isfile(resume_path):
     logging.error(f"Resume file not found at {resume_path}")
-    exit(1)  
-
+    exit(1)
 
 options = webdriver.ChromeOptions()
 options.add_argument("--start-maximized")
@@ -239,13 +184,10 @@ service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service, options=options)
 wait = WebDriverWait(driver, 20)
 
-
-
 def upload_resume(driver, resume_text):
     try:
         with open(resume_path, 'r') as file:
             resume_text = file.read()
-
 
         paste_resume_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "span.jv-text-block.jv-text-link.needsclick.ng-binding"))
@@ -253,21 +195,18 @@ def upload_resume(driver, resume_text):
         paste_resume_button.click()
         logging.info("Selected 'Type or Paste Resume' option.")
 
-        time.sleep(5)
 
         textarea = WebDriverWait(driver, 10).until(
             EC.visibility_of_element_located((By.CSS_SELECTOR, "#jv-paste-resume-textarea0"))
         )
-        textarea.clear()  
-        textarea.send_keys(resume_text)  
+        textarea.clear()
+        textarea.send_keys(resume_text)
         logging.info("Pasted resume text into the textarea.")
 
-        time.sleep(1)
 
         save_button = WebDriverWait(driver, 10).until(
             EC.element_to_be_clickable((By.CSS_SELECTOR, "button.jv-button.jv-button-primary[ng-disabled='!pastedText']"))
         )
-
         save_button.click()
         logging.info("Clicked the 'Save' button after pasting the resume.")
 
@@ -276,36 +215,56 @@ def upload_resume(driver, resume_text):
     except Exception as e:
         logging.error(f"An error occurred: {e}")
 
-
-
 def apply_to_job(job_id, job_link):
-    
     logging.info(f"Opening job link: {job_link}")
     driver.get(job_link)
 
     try:
-
         apply_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Apply') or contains(@class, 'apply-button')]")))
         apply_button.click()
         logging.info("Clicked Apply button.")
         time.sleep(5)
 
 
+        elements = driver.find_elements(By.XPATH, '//*[@required="required"]')
+
+       
+        for element in elements:
+            element_id = element.get_attribute("id")
+            element_value = element.get_attribute("value") or element.get_attribute("name")
+            autocomplete_attr = element.get_attribute("autocomplete")
+            
+            print(f"ID: {element_id}, Value: {element_value}, Autocomplete: {autocomplete_attr}")
+
+
+            label = None
+            for i in range(1, 6):
+                label_xpath = f'./ancestor::*[{i}]/label'
+                label_element = element.find_elements(By.XPATH, label_xpath)
+                if label_element:
+                    label = label_element[0].text
+                    break  
+
+            
+            label_text = label if label else "No label found"
+            
+            print(f"ID: {element_id}, Value: {element_value}, Nearest Label: {label_text}")
+
+        # execute_automation(driver)
+        # handle_uninteracted_required_elements(driver, config)
+        # wait_until_all_required_filled(driver)
+
         select_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Select')]")))
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", select_button)
         time.sleep(1)
 
-
-
         try:
             select_button.click()
             logging.info("Clicked Select button for resume upload.")
-
         except Exception as e:
             logging.warning(f"Click intercepted. Trying JavaScript click instead. Error: {e}")
             driver.execute_script("arguments[0].click();", select_button)
 
-            
         time.sleep(2)
 
         upload_resume(driver, resume_text)
@@ -314,26 +273,21 @@ def apply_to_job(job_id, job_link):
         handle_uninteracted_required_elements(driver, config)
         wait_until_all_required_filled(driver)
 
-    
         next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]")))
         next_button.click()
+
+        logging.info("Next Button Clicked successfully!")
         time.sleep(5)
-        logging.info("Next Button Clicked  successfully!")
-        
 
-
-        time.sleep(10)
 
         execute_automation(driver)
         handle_uninteracted_required_elements(driver, config)
         wait_until_all_required_filled(driver)
 
-
-
         send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'jv-button-primary') and contains(., 'Send Application')]")))
-        
         driver.execute_script("arguments[0].click();", send_button)
         logging.info("Clicked 'Send Application' button.")
+
         try:
             confirmation_message = wait.until(EC.presence_of_element_located(
                 (By.XPATH, "//div[contains(text(), 'Application Sent!')]")
@@ -352,19 +306,14 @@ def apply_to_job(job_id, job_link):
                 logging.error("Unable to submit the application and no confirmation message found.")
                 log_job_status(job_link, "Submission Failed")
 
-
     except TimeoutException:
         logging.error(f"Timeout: Could not find elements for job {job_link}")
-
         log_job_status(job_link, "Failed")
     except NoSuchElementException as e:
         logging.error(f"Error applying for job: {e}")
-
         log_job_status(job_link, "Failed")
 
-    
 def main():
-    
     applied_jobs = load_applied_jobs()
     job_links = generate_job_links(job_csv_file)
 
@@ -375,7 +324,6 @@ def main():
         apply_to_job(job_id, job_link)
 
     driver.quit()
-
 
 if __name__ == "__main__":
     main()
