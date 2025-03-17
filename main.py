@@ -159,15 +159,18 @@ def wait_until_all_required_filled(driver):
         logging.info(f"Waiting for {len(missing_fields)} required fields to be filled...")
         time.sleep(5)
 
+
+
 def handle_uninteracted_required_elements(driver, config):
     all_form_elements = driver.find_elements(By.CSS_SELECTOR, "input, select, textarea")
     for element in all_form_elements:
         if element not in interacted_elements:
             try:
                 is_required = element.get_attribute("required") is not None
-                if is_required:
+                if is_required and not element.get_attribute("value"):
                     element.clear()
                     element.send_keys(config.get(element.get_attribute("name"), ""))
+                    interacted_elements.add(element)
             except Exception as e:
                 print(f"Error processing required element: {e}")
 
@@ -250,9 +253,6 @@ def apply_to_job(job_id, job_link):
             
             print(f"ID: {element_id}, Value: {element_value}, Nearest Label: {label_text}")
 
-        # execute_automation(driver)
-        # handle_uninteracted_required_elements(driver, config)
-        # wait_until_all_required_filled(driver)
 
         select_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Select')]")))
         driver.execute_script("arguments[0].scrollIntoView({block: 'center'});", select_button)
@@ -287,6 +287,7 @@ def apply_to_job(job_id, job_link):
         send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'jv-button-primary') and contains(., 'Send Application')]")))
         driver.execute_script("arguments[0].click();", send_button)
         logging.info("Clicked 'Send Application' button.")
+
 
         try:
             confirmation_message = wait.until(EC.presence_of_element_located(
