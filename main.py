@@ -1,3 +1,4 @@
+import re
 import time
 import yaml
 import logging
@@ -12,7 +13,9 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+
 
 with open("job_application_config.yaml", "r") as file:
     config = yaml.safe_load(file)
@@ -21,20 +24,35 @@ applied_jobs_file = "applied_jobs.yaml"
 job_csv_file = "jobs/linkedin_jobs.csv"
 BASE_URL = "https://jobs.jobvite.com"
 
+
+LABEL_MAPPINGS = {
+    "first name": ["legal first name", "first name", "your name" "preferred first name"],
+    "last name": ["legal last name", "last name", "preferred last name"],
+    "email": ["email", "email address"],
+    "phone": ["cell phone", "mobile phone", "phone", "phone number"],
+    "work status": ["visa status", "work status"],
+    "work authorization": ["work authorization"],
+    "how did you hear about this job" : ["How did you hear about this Job?"],
+}
+
+
 def load_applied_jobs():
     if os.path.exists(applied_jobs_file):
         with open(applied_jobs_file, "r") as file:
             return yaml.safe_load(file) or {}
     return {}
 
+
 def save_applied_jobs(data):
     with open(applied_jobs_file, "w") as file:
         yaml.dump(data, file)
+
 
 def log_job_status(job_link, status):
     jobs_data = load_applied_jobs()
     jobs_data[job_link] = status
     save_applied_jobs(jobs_data)
+
 
 def generate_job_links(csv_filename):
     job_links = []
@@ -45,134 +63,97 @@ def generate_job_links(csv_filename):
                 platform = row.get("platform", "").strip().lower()
                 relative_url = row.get("url", "").strip()
                 job_id = row.get("jobid", "").strip()
-
                 if platform == "jobvite" and relative_url.startswith("/"):
                     full_url = f"{BASE_URL}{relative_url}"
                     job_links.append((job_id, full_url))
-                else:
-                    logging.warning(f"Skipping invalid row: {row}")
-
     except FileNotFoundError:
         logging.error(f"CSV file {csv_filename} not found.")
-
     return job_links
 
-def load_jobs():
-    job_links = "jobs/linkedin_jobs.csv"
-    jobvite_links = []
 
-    if os.path.exists(job_links):
-        with open(job_links, "r") as file:
-            reader = csv.reader(file)
-            next(reader)
-            for row in reader:
-                if row and len(row) > 0:
-                    link = row[0]
-                    if "jobvite" in link.lower():
-                        jobvite_links.append(link)
-                else:
-                    logging.warning(f"Skipping empty or malformed row: {row}")
+# Setup WebDriver
+options = webdriver.ChromeOptions()
+options.add_argument("--start-maximized")
+service = Service(ChromeDriverManager().install())
+driver = webdriver.Chrome(service=service, options=options)
+wait = WebDriverWait(driver, 20)
 
-    return jobvite_links
+# Normalize labels
+def normalize_label(label):
+    if label:
+        return re.sub(r"[^a-zA-Z0-9 ]", "", label).strip().lower()
+    return ""
 
-locators = {
-    # "country_select": {"selector": "select#jv-country-select", "type": "select", "value": "c3a38d35-2bc8-40af-af8e-02457a174c32"},
-    "first_name": {"selector": "input[autocomplete='given-name'][type='text'][maxlength='100']", "type": "input", "value": config["first_name"]},
-    "last_name": {"selector": "input[autocomplete='family-name'][type='text'][maxlength='100']", "type": "input", "value": config["last_name"]},
-    "email": {"selector": "input[autocomplete='email'][type='text']", "type": "input", "value": config["email"]},
-    "phone": {"selector": "input[autocomplete='tel'][type='tel']", "type": "input", "value": config["phone"]},
-    "address": {"selector": "input[autocomplete='address-line1'][type='text'][maxlength='100']", "type": "input", "value": config["address"]},
+# Map label to config
+def map_label_to_config(label):
+    normalized_label = normalize_label(label)
+    for key, variations in LABEL_MAPPINGS.items():
+        if normalized_label in variations:
+            return key
+    return normalized_label  
 
-    "city": {"selector": "input[autocomplete='address-level2'][type='text'][maxlength='100']", "type": "input", "value": config["city"]},
-    "state": {"selector": "select[autocomplete='address-level1']", "type": "select", "value": config["state"]},
-    "zip": {"selector": "input[autocomplete='postal-code'][type='text'][maxlength='100']", "type": "input", "value": config["zip"]},
-   
-    "country": {"selector": "select[autocomplete='country-name'][required]", "type": "select", "value": config["country"]},
-    "visa_status": { "selector": "select[id^='jv-field-'][name^='input-'][autocomplete='on'][required]", "type": "select", "value": config["visa_status"] },
-
-    "work_authorization": {"selector": "select[id^='jv-field-'][name^='input-'][autocomplete='on'][required]", "type": "select", "value": config["work_authorization"]},
-    "gender": { "selector": "select[autocomplete='on'][aria-required='false'][ng-required='field.required']", "type": "select", "value": config["gender"] },
-    # "gender_radio": { "selector": "input[type='radio'][name='gender']", "type": "radio", "value": config["gender"]},
-    # "referred": {"selector": "input[autocomplete='on'][required]", "type": "text", "value": config["referred"]},
-    #"gender": {"selector": "input[type='radio'][id*='gender'][value='Male']", "type": "radio", "value": config["gender"]},
-}
-
-interacted_elements = set()
-
-def interact_with_element(driver, css_selector, element_type, value=None):
+# Interact with elements
+def interact_with_element(element, value):
     try:
-        element = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, css_selector))
-        )
-
-        if element in interacted_elements:
-            return True 
-
-        if element_type == "input":
+        tag_name = element.tag_name.lower()
+        if tag_name == "input":
             element.clear()
-            element.send_keys(value or "")
-
-        elif element_type == "select":
+            element.send_keys(value)
+        elif tag_name == "select":
             select = Select(element)
             try:
                 select.select_by_value(value)
             except:
                 select.select_by_visible_text(value)
-
-        elif element_type in ["radio", "checkbox"] and not element.is_selected():
-            element.click()
-
-        elif element_type == "textarea":
+        elif tag_name == "textarea":
             element.clear()
             element.send_keys(value)
-
-        elif element_type == "button":
+        elif tag_name in ["radio", "checkbox"] and not element.is_selected():
             element.click()
-
-        interacted_elements.add(element)  
         return True
-
     except Exception as e:
-        logging.error(f"Error interacting with element ({css_selector}): {e}")
+        logging.error(f"Error interacting with element: {e}")
         return False
 
-def execute_automation(driver):
-    for key, locator in locators.items():
-        interact_with_element(driver, locator["selector"], locator["type"], locator.get("value", ""))
+
+
+# Fill form fields
+def fill_form_fields(driver, config):
+    elements = driver.find_elements(By.CSS_SELECTOR, "input, select, textarea")
+    for element in elements:
+        label = None
+        for i in range(1, 6):
+            label_xpath = f'./ancestor::*[{i}]/label'
+            label_element = element.find_elements(By.XPATH, label_xpath)
+            if label_element:
+                label = label_element[0].text.strip()
+                break
+        
+        if label:
+            mapped_label = map_label_to_config(label)
+            if mapped_label in config:
+                value = config[mapped_label]
+                interact_with_element(element, value)
+                logging.info(f"Filled field '{label}' with '{value}'")
+            else:
+                logging.warning(f"No matching value found for label: {label}")
+
 
 def wait_until_all_required_filled(driver):
+    """Waits indefinitely until all required fields are filled, checking every 5 seconds."""
     while True:
-        missing_fields = []
-        all_form_elements = driver.find_elements(By.XPATH, "//input | //select | //textarea")
+        required_fields = driver.find_elements(By.CSS_SELECTOR, "input[required], select[required], textarea[required]")
+        unfilled_fields = [field for field in required_fields if not field.get_attribute("value")]
 
-        for element in all_form_elements:
-            if element in interacted_elements:
-                continue  
+        if not unfilled_fields:
+            logging.info("All required fields are filled. Proceeding...")
+            return  # Exit function and proceed to the next step
 
-            if element.get_attribute("required") is not None:
-                if element.get_attribute("value") in [None, ""]:
-                    missing_fields.append(element)
+        for field in unfilled_fields:
+            logging.info(f"Waiting for required field: {field.get_attribute('label') or field.get_attribute('id') or 'Unknown Field'}")
 
-        if not missing_fields:
-            break
-
-        logging.info(f"Waiting for {len(missing_fields)} required fields to be filled...")
         time.sleep(5)
 
-
-
-def handle_uninteracted_required_elements(driver, config):
-    all_form_elements = driver.find_elements(By.CSS_SELECTOR, "input, select, textarea")
-    for element in all_form_elements:
-        if element not in interacted_elements:
-            try:
-                is_required = element.get_attribute("required") is not None
-                if is_required and not element.get_attribute("value"):
-                    element.clear()
-                    element.send_keys(config.get(element.get_attribute("name"), ""))
-                    interacted_elements.add(element)
-            except Exception as e:
-                print(f"Error processing required element: {e}")
 
 resume_text = "resume/resume.txt"
 resume_path = os.path.abspath(resume_text)
@@ -181,12 +162,7 @@ if not os.path.isfile(resume_path):
     logging.error(f"Resume file not found at {resume_path}")
     exit(1)
 
-options = webdriver.ChromeOptions()
-options.add_argument("--start-maximized")
-service = Service(ChromeDriverManager().install())
-driver = webdriver.Chrome(service=service, options=options)
-wait = WebDriverWait(driver, 20)
-
+# Upload resume
 def upload_resume(driver, resume_text):
     try:
         with open(resume_path, 'r') as file:
@@ -217,41 +193,17 @@ def upload_resume(driver, resume_text):
         logging.error(f"Element not found during resume upload: {e}")
     except Exception as e:
         logging.error(f"An error occurred: {e}")
+  
 
+# Apply to job
 def apply_to_job(job_id, job_link):
     logging.info(f"Opening job link: {job_link}")
     driver.get(job_link)
 
     try:
-        apply_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Apply') or contains(@class, 'apply-button')]")))
+        apply_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Apply')]")))
         apply_button.click()
-        logging.info("Clicked Apply button.")
         time.sleep(5)
-
-
-        elements = driver.find_elements(By.XPATH, '//*[@required="required"]')
-
-       
-        for element in elements:
-            element_id = element.get_attribute("id")
-            element_value = element.get_attribute("value") or element.get_attribute("name")
-            autocomplete_attr = element.get_attribute("autocomplete")
-            
-            print(f"ID: {element_id}, Value: {element_value}, Autocomplete: {autocomplete_attr}")
-
-
-            label = None
-            for i in range(1, 6):
-                label_xpath = f'./ancestor::*[{i}]/label'
-                label_element = element.find_elements(By.XPATH, label_xpath)
-                if label_element:
-                    label = label_element[0].text
-                    break  
-
-            
-            label_text = label if label else "No label found"
-            
-            print(f"ID: {element_id}, Value: {element_value}, Nearest Label: {label_text}")
 
 
         select_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Select')]")))
@@ -269,43 +221,59 @@ def apply_to_job(job_id, job_link):
 
         upload_resume(driver, resume_text)
 
-        execute_automation(driver)
-        handle_uninteracted_required_elements(driver, config)
+
+        fill_form_fields(driver, config)
         wait_until_all_required_filled(driver)
-
-        next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]")))
-        next_button.click()
-
-        logging.info("Next Button Clicked successfully!")
         time.sleep(5)
 
+    
+        next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]")))
+        next_button.click()
+        time.sleep(5)
 
-        execute_automation(driver)
-        handle_uninteracted_required_elements(driver, config)
+        fill_form_fields(driver, config)
+        wait_until_all_required_filled(driver)
+
+
+        try:
+            next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Next')]")))
+            driver.execute_script("arguments[0].click();", next_button)
+            print("Clicked the Next button, proceeding to the next page.")
+        except:
+            # If "Next" button is not found, click the "Send Application" button
+            send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'jv-button-primary') and contains(., 'Send Application')]")))
+            driver.execute_script("arguments[0].click();", send_button)
+            print("No Next button found, clicked Send Application.")
+
+        
+        fill_form_fields(driver, config)
         wait_until_all_required_filled(driver)
 
         send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'jv-button-primary') and contains(., 'Send Application')]")))
         driver.execute_script("arguments[0].click();", send_button)
-        logging.info("Clicked 'Send Application' button.")
+
 
 
         try:
-            confirmation_message = wait.until(EC.presence_of_element_located(
-                (By.XPATH, "//div[contains(text(), 'Application Sent!')]")
-            ))
+            confirmation_message = wait.until(EC.presence_of_element_located((
+                By.XPATH, "//div[contains(text(), 'Application Sent!') or contains(text(), 'Application Submitted!')]"
+            )))
             logging.info("Application submitted successfully!")
             log_job_status(job_link, "Successfully Applied")
 
         except TimeoutException:
             try:
-                already_applied_message = wait.until(EC.presence_of_element_located(
-                    (By.XPATH, "//div[contains(text(), 'already applied')] | //div[contains(text(), \"You've already applied!\")]")
-                ))
+                already_applied_message = wait.until(EC.presence_of_element_located((
+                    By.XPATH, "//div[contains(text(), \"You've already applied!\")]"
+                )))
                 logging.info("You have already submitted the application.")
-                log_job_status(job_link, "Already Applied")
+                log_job_status(job_link, "Already Submitted")
+
             except TimeoutException:
                 logging.error("Unable to submit the application and no confirmation message found.")
                 log_job_status(job_link, "Submission Failed")
+
+
 
     except TimeoutException:
         logging.error(f"Timeout: Could not find elements for job {job_link}")
@@ -314,10 +282,11 @@ def apply_to_job(job_id, job_link):
         logging.error(f"Error applying for job: {e}")
         log_job_status(job_link, "Failed")
 
+# Main function
 def main():
     applied_jobs = load_applied_jobs()
     job_links = generate_job_links(job_csv_file)
-
+    
     for job_id, job_link in job_links:
         if job_link in applied_jobs and applied_jobs[job_link] == "Successfully Applied":
             logging.info(f"Skipping already applied job: {job_id}")
