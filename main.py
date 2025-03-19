@@ -13,9 +13,12 @@ from webdriver_manager.chrome import ChromeDriverManager
 from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 
-
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-
+logging.basicConfig(filename = "system log.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# log_file = logging.FileHandler("./logger.log")
+# mylogging = logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+# logging= logging.Handler(log_file)
+# x = logging.getLogger("LOG INFO")
+# x.
 
 with open("job_application_config.yaml", "r") as file:
     config = yaml.safe_load(file)
@@ -30,11 +33,14 @@ LABEL_MAPPINGS = {
     "last name": ["legal last name", "last name", "preferred last name"],
     "email": ["email", "email address"],
     "phone": ["cell phone", "mobile phone", "phone", "phone number"],
+    "work experience": ["how many years of professional experience do you have relevant to the position to which you are applying excluding internships" , "how many years of professional managerial experience do you have relevant to the position to which you are applying excluding internships you may skip if applying to an individual contributor position"],
     "work status": ["visa status", "work status"],
+    "degree": ["highest level of degree you are pursuing or achieved"],
+    "college/university":["Select the College/University Attended","select the collegeuniversity attended"],
     "work authorization": ["work authorization"],
     "how did you hear about this job" : ["How did you hear about this Job?"],
-}
 
+}
 
 def load_applied_jobs():
     if os.path.exists(applied_jobs_file):
@@ -71,28 +77,29 @@ def generate_job_links(csv_filename):
     return job_links
 
 
-# Setup WebDriver
+
 options = webdriver.ChromeOptions()
 options.add_argument("--start-maximized")
 service = Service(ChromeDriverManager().install())
 driver = webdriver.Chrome(service=service, options=options)
 wait = WebDriverWait(driver, 20)
 
-# Normalize labels
+
 def normalize_label(label):
     if label:
         return re.sub(r"[^a-zA-Z0-9 ]", "", label).strip().lower()
     return ""
 
-# Map label to config
+
 def map_label_to_config(label):
     normalized_label = normalize_label(label)
+    print(f"normalized label------------------------------------------ {normalized_label}")
     for key, variations in LABEL_MAPPINGS.items():
         if normalized_label in variations:
             return key
     return normalized_label  
 
-# Interact with elements
+
 def interact_with_element(element, value):
     try:
         tag_name = element.tag_name.lower()
@@ -117,7 +124,7 @@ def interact_with_element(element, value):
 
 
 
-# Fill form fields
+#
 def fill_form_fields(driver, config):
     elements = driver.find_elements(By.CSS_SELECTOR, "input, select, textarea")
     for element in elements:
@@ -147,7 +154,7 @@ def wait_until_all_required_filled(driver):
 
         if not unfilled_fields:
             logging.info("All required fields are filled. Proceeding...")
-            return  # Exit function and proceed to the next step
+            return 
 
         for field in unfilled_fields:
             logging.info(f"Waiting for required field: {field.get_attribute('label') or field.get_attribute('id') or 'Unknown Field'}")
@@ -162,7 +169,7 @@ if not os.path.isfile(resume_path):
     logging.error(f"Resume file not found at {resume_path}")
     exit(1)
 
-# Upload resume
+
 def upload_resume(driver, resume_text):
     try:
         with open(resume_path, 'r') as file:
@@ -195,14 +202,17 @@ def upload_resume(driver, resume_text):
         logging.error(f"An error occurred: {e}")
   
 
-# Apply to job
+
 def apply_to_job(job_id, job_link):
     logging.info(f"Opening job link: {job_link}")
     driver.get(job_link)
 
     try:
-        apply_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Apply')]")))
+        apply_button = wait.until(EC.element_to_be_clickable((
+        By.CSS_SELECTOR, "a.jv-button.jv-button-primary.jv-button-apply"
+        )))
         apply_button.click()
+        logging.info("Clicked Apply button")
         time.sleep(5)
 
 
@@ -227,8 +237,12 @@ def apply_to_job(job_id, job_link):
         time.sleep(5)
 
     
-        next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(text(), 'Next')]")))
+       
+        next_button = wait.until(EC.element_to_be_clickable((
+        By.CSS_SELECTOR, "button.jv-button.jv-button-primary.jv-button-large"
+        )))
         next_button.click()
+        logging.info("Clicked Next button")
         time.sleep(5)
 
         fill_form_fields(driver, config)
@@ -236,14 +250,32 @@ def apply_to_job(job_id, job_link):
 
 
         try:
-            next_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(., 'Next')]")))
-            driver.execute_script("arguments[0].click();", next_button)
+            next_button = wait.until(EC.element_to_be_clickable((
+            By.CSS_SELECTOR, "button.jv-button.jv-button-primary.jv-button-large"
+            )))
+            next_button.click()
+            logging.info("Clicked Next button")
+            time.sleep(5)
             print("Clicked the Next button, proceeding to the next page.")
+
         except:
-            # If "Next" button is not found, click the "Send Application" button
             send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'jv-button-primary') and contains(., 'Send Application')]")))
             driver.execute_script("arguments[0].click();", send_button)
             print("No Next button found, clicked Send Application.")
+
+            # send_button = wait.until(EC.element_to_be_clickable((
+            # By.CSS_SELECTOR, "button.jv-button.jv-button-primary"
+            # )))
+            # send_button.click()
+            # logging.info("✅ Clicked 'Send Application' button.")
+            # time.sleep(5)
+
+            # send_button = wait.until(EC.presence_of_element_located((
+            # By.CSS_SELECTOR, "button.jv-button.jv-button-primary"
+            # )))
+            # driver.execute_script("arguments[0].click();", send_button)
+            # logging.info("✅ Clicked 'Send Application' button using JavaScript.")
+            # time.sleep(5)
 
         
         fill_form_fields(driver, config)
@@ -252,27 +284,42 @@ def apply_to_job(job_id, job_link):
         send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'jv-button-primary') and contains(., 'Send Application')]")))
         driver.execute_script("arguments[0].click();", send_button)
 
+        # send_button = wait.until(EC.element_to_be_clickable((
+        # By.CSS_SELECTOR, "button.jv-button.jv-button-primary"
+        # )))
+        # send_button.click()
+        # logging.info("✅ Clicked 'Send Application' button.")
+        # time.sleep(5)
+
+
+        # send_button = wait.until(EC.presence_of_element_located((
+        # By.CSS_SELECTOR, "button.jv-button.jv-button-primary"
+        # )))
+        # driver.execute_script("arguments[0].click();", send_button)
+        # logging.info("✅ Clicked 'Send Application' button using JavaScript.")
+        # time.sleep(5)
 
 
         try:
             confirmation_message = wait.until(EC.presence_of_element_located((
                 By.XPATH, "//div[contains(text(), 'Application Sent!') or contains(text(), 'Application Submitted!')]"
             )))
+            print("*-*--*--*--*-----*--*-**-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*----*-*---*-*-*-*-*")
             logging.info("Application submitted successfully!")
             log_job_status(job_link, "Successfully Applied")
 
         except TimeoutException:
             try:
                 already_applied_message = wait.until(EC.presence_of_element_located((
-                    By.XPATH, "//div[contains(text(), \"You've already applied!\")]"
+                    By.XPATH, "//p[contains(@class, 'jv-page-error-header') and contains(text(), \"You've already applied!\")]"
                 )))
+                print("---------------------------already_applied----------------------------------------")
                 logging.info("You have already submitted the application.")
                 log_job_status(job_link, "Already Submitted")
 
             except TimeoutException:
                 logging.error("Unable to submit the application and no confirmation message found.")
                 log_job_status(job_link, "Submission Failed")
-
 
 
     except TimeoutException:
@@ -282,7 +329,7 @@ def apply_to_job(job_id, job_link):
         logging.error(f"Error applying for job: {e}")
         log_job_status(job_link, "Failed")
 
-# Main function
+
 def main():
     applied_jobs = load_applied_jobs()
     job_links = generate_job_links(job_csv_file)
