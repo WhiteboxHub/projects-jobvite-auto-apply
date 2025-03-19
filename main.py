@@ -14,11 +14,6 @@ from selenium.webdriver.chrome.service import Service
 from selenium.webdriver.common.keys import Keys
 
 logging.basicConfig(filename = "system log.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-# log_file = logging.FileHandler("./logger.log")
-# mylogging = logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
-# logging= logging.Handler(log_file)
-# x = logging.getLogger("LOG INFO")
-# x.
 
 with open("job_application_config.yaml", "r") as file:
     config = yaml.safe_load(file)
@@ -124,7 +119,6 @@ def interact_with_element(element, value):
 
 
 
-#
 def fill_form_fields(driver, config):
     elements = driver.find_elements(By.CSS_SELECTOR, "input, select, textarea")
     for element in elements:
@@ -147,7 +141,6 @@ def fill_form_fields(driver, config):
 
 
 def wait_until_all_required_filled(driver):
-    """Waits indefinitely until all required fields are filled, checking every 5 seconds."""
     while True:
         required_fields = driver.find_elements(By.CSS_SELECTOR, "input[required], select[required], textarea[required]")
         unfilled_fields = [field for field in required_fields if not field.get_attribute("value")]
@@ -263,19 +256,7 @@ def apply_to_job(job_id, job_link):
             driver.execute_script("arguments[0].click();", send_button)
             print("No Next button found, clicked Send Application.")
 
-            # send_button = wait.until(EC.element_to_be_clickable((
-            # By.CSS_SELECTOR, "button.jv-button.jv-button-primary"
-            # )))
-            # send_button.click()
-            # logging.info("✅ Clicked 'Send Application' button.")
-            # time.sleep(5)
-
-            # send_button = wait.until(EC.presence_of_element_located((
-            # By.CSS_SELECTOR, "button.jv-button.jv-button-primary"
-            # )))
-            # driver.execute_script("arguments[0].click();", send_button)
-            # logging.info("✅ Clicked 'Send Application' button using JavaScript.")
-            # time.sleep(5)
+           
 
         
         fill_form_fields(driver, config)
@@ -284,27 +265,12 @@ def apply_to_job(job_id, job_link):
         send_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//button[contains(@class, 'jv-button-primary') and contains(., 'Send Application')]")))
         driver.execute_script("arguments[0].click();", send_button)
 
-        # send_button = wait.until(EC.element_to_be_clickable((
-        # By.CSS_SELECTOR, "button.jv-button.jv-button-primary"
-        # )))
-        # send_button.click()
-        # logging.info("✅ Clicked 'Send Application' button.")
-        # time.sleep(5)
-
-
-        # send_button = wait.until(EC.presence_of_element_located((
-        # By.CSS_SELECTOR, "button.jv-button.jv-button-primary"
-        # )))
-        # driver.execute_script("arguments[0].click();", send_button)
-        # logging.info("✅ Clicked 'Send Application' button using JavaScript.")
-        # time.sleep(5)
-
+    
 
         try:
             confirmation_message = wait.until(EC.presence_of_element_located((
                 By.XPATH, "//div[contains(text(), 'Application Sent!') or contains(text(), 'Application Submitted!')]"
             )))
-            print("*-*--*--*--*-----*--*-**-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*-*--*-*-*-*-*----*-*---*-*-*-*-*")
             logging.info("Application submitted successfully!")
             log_job_status(job_link, "Successfully Applied")
 
