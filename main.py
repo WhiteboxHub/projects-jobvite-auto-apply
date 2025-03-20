@@ -26,6 +26,8 @@ BASE_URL = "https://jobs.jobvite.com"
 LABEL_MAPPINGS = {
     "first name": ["legal first name", "first name", "your name" "preferred first name"],
     "last name": ["legal last name", "last name", "preferred last name"],
+    "your name": ["legal name"],
+    "pronouns": ["preferred pronoun","pronoun"],
     "email": ["email", "email address"],
     "phone": ["cell phone", "mobile phone", "phone", "phone number"],
     "work experience": ["how many years of professional experience do you have relevant to the position to which you are applying excluding internships" , "how many years of professional managerial experience do you have relevant to the position to which you are applying excluding internships you may skip if applying to an individual contributor position"],
@@ -269,19 +271,22 @@ def apply_to_job(job_id, job_link):
 
         try:
             confirmation_message = wait.until(EC.presence_of_element_located((
-                By.XPATH, "//div[contains(text(), 'Application Sent!') or contains(text(), 'Application Submitted!')]"
+            By.CSS_SELECTOR, "h2.jv-page-message-header"
             )))
+            Print("---------------------Applied_Successfully----------------------------------------")
             logging.info("Application submitted successfully!")
             log_job_status(job_link, "Successfully Applied")
+
 
         except TimeoutException:
             try:
                 already_applied_message = wait.until(EC.presence_of_element_located((
-                    By.XPATH, "//p[contains(@class, 'jv-page-error-header') and contains(text(), \"You've already applied!\")]"
+                By.CSS_SELECTOR, "p.jv-page-error-header"
                 )))
                 print("---------------------------already_applied----------------------------------------")
                 logging.info("You have already submitted the application.")
                 log_job_status(job_link, "Already Submitted")
+
 
             except TimeoutException:
                 logging.error("Unable to submit the application and no confirmation message found.")
