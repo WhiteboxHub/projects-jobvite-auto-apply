@@ -104,7 +104,7 @@ for key, locator in locators.items():
         locator["value"] = config.get(key.replace("_", " "), "")
         
 
-# interacted_elements = set()
+
 
 
 def read_csv(file_path):
@@ -119,7 +119,7 @@ def read_csv(file_path):
 
 
 
-filled_fields = set()  # Track already filled fields across pages
+filled_fields = set()  
 
 def fill_form(driver, qa_data):
     global filled_fields
@@ -128,27 +128,27 @@ def fill_form(driver, qa_data):
     for question, answer in qa_data.items():
         if question in filled_fields:
             logging.info(f"Skipping already filled question: {question}")
-            continue  # Skip if already filled in a previous page
+            continue 
         
         try:
-            # Locate label elements
+        
             label_xpath = f"//label[contains(normalize-space(), '{question}')] | //legend[contains(normalize-space(), '{question}')]"
             label_element = WebDriverWait(driver, 5).until(
                 EC.presence_of_element_located((By.XPATH, label_xpath))
             )
 
-            # Handle radio buttons
+     
             radio_buttons = label_element.find_elements(By.XPATH, "following::input[@type='radio']")
             if radio_buttons:
                 for rb in radio_buttons:
                     if rb.get_attribute("value").strip().lower() == answer.strip().lower():
                         driver.execute_script("arguments[0].click();", rb)
                         completed_questions.add(question)
-                        filled_fields.add(question)  # Mark as filled
+                        filled_fields.add(question) 
                         break
                 continue  
 
-            # Handle text inputs, textareas, and selects
+       
             input_element = None
             try:
                 input_element = label_element.find_element(By.XPATH, "following::*[self::input or self::textarea or self::select][1]")
@@ -158,7 +158,7 @@ def fill_form(driver, qa_data):
             if input_element:
                 tag_name = input_element.tag_name.lower()
                 if tag_name in ["input", "textarea"]:
-                    if input_element.get_attribute("value").strip():  # Check if already filled
+                    if input_element.get_attribute("value").strip(): 
                         logging.info(f"Skipping already filled field: {question}")
                         filled_fields.add(question)
                         continue  
@@ -171,63 +171,14 @@ def fill_form(driver, qa_data):
                     select.select_by_visible_text(answer)
 
                 completed_questions.add(question)
-                filled_fields.add(question)  # Mark as filled
+                filled_fields.add(question) 
         
         except Exception as e:
             logging.warning(f"Skipping question '{question}' - Element not found or error: {e}")
 
     if len(completed_questions) == len(qa_data):
-        logging.info("All questions have been filled. Stopping execution.")
+        logging.info("------All questions have been filled Stopping execution-----")
 
-
-# filled_fields = set()  
-
-# def fill_form(driver, qa_data):
-#     completed_questions = set()
-    
-#     for question, answer in qa_data.items():
-#         if question in completed_questions or question in filled_fields:
-#             continue 
-        
-#         try:
-#             label_xpath = f"//label[contains(normalize-space(), '{question}')] | //legend[contains(normalize-space(), '{question}')]"
-#             label_element = WebDriverWait(driver, 10).until(
-#                 EC.presence_of_element_located((By.XPATH, label_xpath))
-#             )
-            
-#             radio_buttons = label_element.find_elements(By.XPATH, "following::input[@type='radio']")
-#             if radio_buttons:
-#                 for rb in radio_buttons:
-#                     if rb.get_attribute("value").strip().lower() == answer.strip().lower():
-#                         driver.execute_script("arguments[0].click();", rb)
-#                         completed_questions.add(question)
-#                         filled_fields.add(question) 
-#                         break
-#                 continue  
-            
-#             input_element = None
-#             try:
-#                 input_element = label_element.find_element(By.XPATH, "following::*[self::input or self::textarea or self::select][1]")
-#             except:
-#                 pass
-            
-#             if input_element:
-#                 tag_name = input_element.tag_name.lower()
-#                 if tag_name == "input" or tag_name == "textarea":
-#                     input_element.clear()
-#                     input_element.send_keys(answer)
-#                 elif tag_name == "select":
-#                     Select(input_element).select_by_visible_text(answer)
-                
-#                 completed_questions.add(question)
-#                 filled_fields.add(question)  
-#                 continue
-        
-#         except Exception as e:
-#             print(f"Skipping question '{question}' - Element not found or error: {e}")
-    
-#     if len(completed_questions) == len(qa_data):
-#         print("All questions have been filled. Stopping execution.")
 
 
 interacted_elements = set()
