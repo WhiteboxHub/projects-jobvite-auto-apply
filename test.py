@@ -4,6 +4,7 @@ import yaml
 import logging
 import os
 import csv
+from datetime import datetime
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait, Select
@@ -27,6 +28,31 @@ csv_file = "config/answers.csv"
 
 
 
+def get_logger():
+    log_dir = "logs"
+    os.makedirs(log_dir, exist_ok=True)
+    date_str = datetime.now().strftime("%d-%m-%Y")
+    log_filename = f"{date_str}.log"
+    log_file_path = os.path.join(log_dir, log_filename)
+    logger = logging.getLogger("JobStatusLogger")
+
+
+    if not logger.handlers:
+        logger.setLevel(logging.INFO)
+        file_handler = logging.FileHandler(log_file_path, mode='a', encoding='utf-8')
+        formatter = logging.Formatter('%(message)s')
+        file_handler.setFormatter(formatter)
+        logger.addHandler(file_handler)
+
+    return logger
+
+
+def logger_log_job_status(job_link, status):
+    logger = get_logger()
+    timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
+    log_entry = f"[{timestamp}], {status}, {job_link}"
+    logger.info(log_entry)
+
 
 def load_applied_jobs():
     if os.path.exists(applied_jobs_file):
@@ -42,6 +68,11 @@ def log_job_status(job_link, status):
     jobs_data = load_applied_jobs()
     jobs_data[job_link] = status
     save_applied_jobs(jobs_data)
+    logger_log_job_status(job_link, status)
+
+
+
+
 
 def generate_job_links(csv_filename):
     job_links = []
