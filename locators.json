@@ -1,0 +1,62 @@
+{
+    "first_name": {
+      "selector": "input[autocomplete='given-name'][type='text'][maxlength='100']",
+      "type": "input",
+      "value": "{{ first name }}"
+    },
+    "last_name": {
+      "selector": "input[autocomplete='family-name'][type='text'][maxlength='100']",
+      "type": "input",
+      "value": "{{ last name }}"
+    },
+    "email": {
+      "selector": "input[autocomplete='email'][type='text']",
+      "type": "input",
+      "value": "{{ email }}"
+    },
+    "phone": {
+      "selector": "input[autocomplete='tel'][type='tel']",
+      "type": "input",
+      "value": "{{ phone }}"
+    },
+    "address": {
+      "selector": "input[autocomplete='address-line1'][type='text'][maxlength='100']",
+      "type": "input",
+      "value": "{{ address }}"
+    },
+    "city": {
+      "selector": "input[autocomplete='address-level2'][type='text'][maxlength='100']",
+      "type": "input",
+      "value": "{{ city }}"
+    },
+    "state": {
+      "selector": "select[autocomplete='address-level1']",
+      "type": "select",
+      "value": "{{ state }}"
+    },
+    "zip": {
+      "selector": "input[autocomplete='postal-code'][type='text'][maxlength='100']",
+      "type": "input",
+      "value": "{{ zip }}"
+    },
+    "country": {
+      "selector": "select[autocomplete='country-name'][required]",
+      "type": "select",
+      "value": "{{ country }}"
+    },
+    "work_status": {
+      "selector": "select[id^='jv-field-'][name^='input-'][autocomplete='on'][required]",
+      "type": "select",
+      "value": "{{ work status }}"
+    },
+    "work_authorization": {
+      "selector": "select[name='input-yUfzZfwr']",
+      "type": "select",
+      "value": "{{ work authorization }}"
+    },
+    "gender": {
+      "selector": "select[autocomplete='sex'][required]",
+      "type": "select",
+      "value": "{{ gender }}"
+    }
+}
