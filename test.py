@@ -18,8 +18,9 @@ from selenium.webdriver.common.keys import Keys
 logging.basicConfig(filename = "system log.log", level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 
-with open("job_application_config.yaml", "r") as file:
+with open("credentials/maryam_config.yaml", "r") as file:
     config = yaml.safe_load(file)
+
 
 applied_jobs_file = "applied_jobs.yaml"
 job_csv_file = "jobs/linkedin_jobs.csv"
@@ -73,27 +74,48 @@ def log_job_status(job_link, status):
 
 
 
-
 def generate_job_links(csv_filename):
     job_links = []
+
     try:
         with open(csv_filename, mode='r', newline='', encoding='utf-8') as file:
             reader = csv.DictReader(file)
             for row in reader:
+                company = row.get("company", "").strip()
+                job_id = row.get("job_id", "").strip()
+                fallback_url = row.get("platform_link", "").strip()
                 platform = row.get("platform", "").strip().lower()
-                relative_url = row.get("url", "").strip()
-                job_id = row.get("jobid", "").strip()
 
-                if platform == "jobvite" and relative_url.startswith("/"):
-                    full_url = f"{BASE_URL}{relative_url}"
-                    job_links.append((job_id, full_url))
+                final_url = None
+
+                if platform == "jobvite":
+                    if company and job_id:
+                        final_url = f"{BASE_URL}/{company}/job/{job_id}"
+                    elif fallback_url:
+                        final_url = fallback_url
+                        logging.warning(f"Falling back to platform_link for row: {row}")
+                    else:
+                        logging.warning(f"Missing data to construct URL and no fallback: {row}")
+                        continue  # Skip this row
+
+                    job_data = {
+                        "company": company,
+                        "job_id": job_id,
+                        "url": final_url
+                    }
+                    job_links.append(job_data)
                 else:
-                    logging.warning(f"Skipping invalid row: {row}")
+                    logging.info(f"Skipping non-Jobvite platform: {row}")
+
+        logging.info(f"Loaded {len(job_links)} Jobvite job entries from {csv_filename}")
 
     except FileNotFoundError:
         logging.error(f"CSV file {csv_filename} not found.")
+    except Exception as e:
+        logging.exception(f"Unexpected error while reading {csv_filename}: {e}")
 
     return job_links
+
 
 def load_jobs():
     job_links = "jobs/linkedin_jobs.csv"
@@ -115,8 +137,8 @@ def load_jobs():
 
 
 
-with open("job_application_config.yaml", "r") as f:
-    config = yaml.safe_load(f) 
+# with open("job_application_config.yaml", "r") as f:
+#     config = yaml.safe_load(f) 
 
 
 with open("locators.json", "r") as f:
@@ -136,8 +158,6 @@ for key, locator in locators.items():
         
 
 
-
-
 def read_csv(file_path):
     qa_dict = {}
     with open(file_path, mode='r', encoding='utf-8') as file:
@@ -149,12 +169,9 @@ def read_csv(file_path):
     return qa_dict
 
 
-
-filled_fields = set()  
-
-def fill_form(driver, qa_data):
-    global filled_fields
+def fill_form(driver, qa_data, filled_fields):
     completed_questions = set()
+
     
     for question, answer in qa_data.items():
         if question in filled_fields:
@@ -352,10 +369,10 @@ def apply_to_job(job_id, job_link):
         logging.info("Clicked Apply button.")
         time.sleep(5)
 
+        filled_fields = set() 
 
         elements = driver.find_elements(By.XPATH, '//*[@required="required"]')
 
-       
         for element in elements:
             element_id = element.get_attribute("id")
             element_value = element.get_attribute("value") or element.get_attribute("name")
@@ -397,7 +414,7 @@ def apply_to_job(job_id, job_link):
         execute_automation(driver)
         handle_uninteracted_required_elements(driver, config)
         qa_data = read_csv(csv_file)
-        fill_form(driver, qa_data)
+        fill_form(driver, qa_data, filled_fields)
         wait_until_all_required_filled(driver)
         
 
@@ -413,7 +430,7 @@ def apply_to_job(job_id, job_link):
         execute_automation(driver)
         handle_uninteracted_required_elements(driver, config)
         qa_data = read_csv(csv_file)
-        fill_form(driver, qa_data)
+        fill_form(driver, qa_data, filled_fields)
         wait_until_all_required_filled(driver)
 
         try:
@@ -428,7 +445,7 @@ def apply_to_job(job_id, job_link):
             execute_automation(driver)
             handle_uninteracted_required_elements(driver, config)
             qa_data = read_csv(csv_file)
-            fill_form(driver, qa_data)
+            fill_form(driver, qa_data, filled_fields)
             wait_until_all_required_filled(driver)
 
         except:
@@ -475,11 +492,16 @@ def apply_to_job(job_id, job_link):
         logging.error(f"Error applying for job: {e}")
         log_job_status(job_link, "Failed")
 
+
+
 def main():
     applied_jobs = load_applied_jobs()
     job_links = generate_job_links(job_csv_file)
 
-    for job_id, job_link in job_links:
+    for job in job_links:
+        job_id = job["job_id"]
+        job_link = job["url"]
+
         if job_link in applied_jobs and applied_jobs[job_link] == "Successfully Applied":
             logging.info(f"Skipping already applied job: {job_id}")
             continue
@@ -489,5 +511,4 @@ def main():
     driver.quit()
 
 if __name__ == "__main__":
-
     main()
