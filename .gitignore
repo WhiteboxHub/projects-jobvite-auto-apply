@@ -2,3 +2,6 @@ __pycache__
 myvenv
 system log.log
 logs
+credentials
+resume
+.DS_Store
