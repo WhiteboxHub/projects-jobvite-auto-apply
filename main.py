@@ -185,7 +185,7 @@ def fill_form(driver, qa_data, filled_fields, filled_locators):
     if len(completed_questions) == len(qa_data):
         logging.info("------All questions have been filled. Stopping execution-----")
 
-    # Update filled_locators with the current filled fields
+
     filled_locators.update(filled_fields)
 
 interacted_elements = set()
@@ -302,7 +302,7 @@ def apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config):
     logging.info(f"Opening job link: {job_link}")
     driver.get(job_link)
 
-    filled_locators = set()  # Track filled locators for the current job link
+    filled_locators = set()  
 
     try:
         apply_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Apply') or contains(@class, 'apply-button')]")))
@@ -454,7 +454,7 @@ def main():
     with open(config_path, "r") as file:
         config = yaml.safe_load(file)
 
-    # Dynamically set the resume_filename based on the selected configuration
+
     resume_filename = config.get("resume_file", selected_config.replace('.yaml', '.txt'))
     resume_path = os.path.join("resume", resume_filename)
 
