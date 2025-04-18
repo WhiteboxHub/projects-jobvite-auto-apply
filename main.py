@@ -462,7 +462,7 @@ def main():
         logging.error(f"Resume file not found at {resume_path}")
         exit(1)
 
-    with open("locators.json", "r") as f:
+    with open("locators/jobvite_locators.json", "r") as f:
         locators = json.load(f)
 
     for key in locators.keys():
