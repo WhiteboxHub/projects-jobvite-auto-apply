@@ -39,10 +39,10 @@ def get_logger():
 
     return logger
 
-def logger_log_job_status(job_link, status):
+def logger_log_job_status(job_link, status, candidate_name):
     logger = get_logger()
     timestamp = datetime.now().strftime('%Y-%m-%d %H:%M:%S')
-    log_entry = f"[{timestamp}], {status}, {job_link}"
+    log_entry = f"[{timestamp}], {candidate_name}, {status}, {job_link}"
     logger.info(log_entry)
 
 def load_applied_jobs():
@@ -55,11 +55,11 @@ def save_applied_jobs(data):
     with open(applied_jobs_file, "w") as file:
         yaml.dump(data, file)
 
-def log_job_status(job_link, status):
+def log_job_status(job_link, status, candidate_name):
     jobs_data = load_applied_jobs()
     jobs_data[job_link] = status
     save_applied_jobs(jobs_data)
-    logger_log_job_status(job_link, status)
+    logger_log_job_status(job_link, status, candidate_name)
 
 def generate_job_links(csv_filename):
     job_links = []
@@ -185,7 +185,6 @@ def fill_form(driver, qa_data, filled_fields, filled_locators):
     if len(completed_questions) == len(qa_data):
         logging.info("------All questions have been filled. Stopping execution-----")
 
-
     filled_locators.update(filled_fields)
 
 interacted_elements = set()
@@ -298,11 +297,11 @@ def upload_resume(driver, resume_path):
     except Exception as e:
         logging.error(f"An error occurred: {e}")
 
-def apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config):
+def apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config, candidate_name):
     logging.info(f"Opening job link: {job_link}")
     driver.get(job_link)
 
-    filled_locators = set()  
+    filled_locators = set()
 
     try:
         apply_button = wait.until(EC.element_to_be_clickable((By.XPATH, "//a[contains(text(), 'Apply') or contains(@class, 'apply-button')]")))
@@ -361,7 +360,7 @@ def apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config):
         logging.info("------Clicked Next button----")
         time.sleep(5)
 
-        execute_automation(driver, locators, filled_locators)
+        # execute_automation(driver, locators, filled_locators)
         handle_uninteracted_required_elements(driver, config, filled_locators)
         qa_data = read_csv(csv_file)
         fill_form(driver, qa_data, filled_fields, filled_locators)
@@ -376,7 +375,7 @@ def apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config):
             time.sleep(5)
             print("---- Clicked the Next button proceeding to the next page-------")
 
-            execute_automation(driver, locators, filled_locators)
+            # execute_automation(driver, locators, filled_locators)
             handle_uninteracted_required_elements(driver, config, filled_locators)
             qa_data = read_csv(csv_file)
             fill_form(driver, qa_data, filled_fields, filled_locators)
@@ -399,7 +398,7 @@ def apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config):
             )))
             print("---------------------Applied_Successfully----------------------------------------")
             logging.info("Application submitted successfully!")
-            log_job_status(job_link, "Successfully Applied")
+            log_job_status(job_link, "Successfully Applied", candidate_name)
 
         except TimeoutException:
             try:
@@ -408,18 +407,18 @@ def apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config):
                 )))
                 print("---------------------------already_applied----------------------------------------")
                 logging.info("-----You have already submitted the application------")
-                log_job_status(job_link, "Already Submitted")
+                log_job_status(job_link, "Already Submitted", candidate_name)
 
             except TimeoutException:
                 logging.error("Unable to submit the application and no confirmation message found.")
-                log_job_status(job_link, "Submission Failed")
+                log_job_status(job_link, "Submission Failed", candidate_name)
 
     except TimeoutException:
         logging.error(f"Timeout: Could not find elements for job {job_link}")
-        log_job_status(job_link, "Failed")
+        log_job_status(job_link, "Failed", candidate_name)
     except NoSuchElementException as e:
         logging.error(f"Error applying for job: {e}")
-        log_job_status(job_link, "Failed")
+        log_job_status(job_link, "Failed", candidate_name)
 
 def list_user_configs():
     config_dir = "credentials"
@@ -454,6 +453,11 @@ def main():
     with open(config_path, "r") as file:
         config = yaml.safe_load(file)
 
+   
+    # print("Loaded configuration:", config)
+
+    candidate_name = config.get("first name", "Unknown Candidate")
+    print("Candidate Name:", candidate_name)  
 
     resume_filename = config.get("resume_file", selected_config.replace('.yaml', '.txt'))
     resume_path = os.path.join("resume", resume_filename)
@@ -491,7 +495,7 @@ def main():
             logging.info(f"Skipping already applied job: {job_id}")
             continue
 
-        apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config)
+        apply_to_job(driver, wait, job_id, job_link, resume_path, locators, config, candidate_name)
 
     driver.quit()
 
