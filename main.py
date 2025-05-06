@@ -456,7 +456,7 @@ def main():
    
     # print("Loaded configuration:", config)
 
-    candidate_name = config.get("first name", "Unknown Candidate")
+    candidate_name = config.get("first_name", "Unknown Candidate")
     print("Candidate Name:", candidate_name)  
 
     resume_filename = config.get("resume_file", selected_config.replace('.yaml', '.txt'))
@@ -501,3 +501,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+    

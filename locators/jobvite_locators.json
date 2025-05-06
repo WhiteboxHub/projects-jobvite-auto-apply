@@ -2,12 +2,12 @@
     "first_name": {
       "selector": "input[autocomplete='given-name'][type='text'][maxlength='100']",
       "type": "input",
-      "value": "{{ first name }}"
+      "value": "{{ first_name }}"
     },
     "last_name": {
       "selector": "input[autocomplete='family-name'][type='text'][maxlength='100']",
       "type": "input",
-      "value": "{{ last name }}"
+      "value": "{{ last_name }}"
     },
     "email": {
       "selector": "input[autocomplete='email'][type='text']",
@@ -47,12 +47,12 @@
     "work_status": {
       "selector": "select[id^='jv-field-'][name^='input-'][autocomplete='on'][required]",
       "type": "select",
-      "value": "{{ work status }}"
+      "value": "{{ work_status }}"
     },
     "work_authorization": {
       "selector": "select[name='input-yUfzZfwr']",
       "type": "select",
-      "value": "{{ work authorization }}"
+      "value": "{{ work_authorization }}"
     },
     "gender": {
       "selector": "select[autocomplete='sex'][required]",
